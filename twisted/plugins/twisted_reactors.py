@@ -36,3 +36,6 @@ kqueue = Reactor(
 iocp = Reactor(
     'iocp', 'twisted.internet.iocpreactor',
     'Win32 IO Completion Ports-based reactor.')
+qt = Reactor(
+    'qt', 'twisted.internet.qtreactor',
+    'Qt based reactor using PySide or PyQt')
