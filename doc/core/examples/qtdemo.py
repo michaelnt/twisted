@@ -8,19 +8,26 @@ Fetch a URL's contents.
 """
 
 import sys, urlparse
-from qt import *
 
-from twisted.internet import qtreactor, protocol
-app = QApplication([])
-qtreactor.install(app)
+from PySide.QtCore import QSocketNotifier, QObject, SIGNAL, QTimer, QCoreApplication
+from PySide.QtCore import QEventLoop
+from PySide import QtGui
+from PySide.QtWebKit import QWebView
 
+from twisted.internet import protocol
+
+app = QtGui.QApplication(sys.argv)
+from twisted.internet import qtreactor
+qtreactor.install()
+
+# The reactor must be installed before this import
 from twisted.web import http
 
 
 class TwistzillaClient(http.HTTPClient):
-    def __init__(self, edit, urls):
-        self.urls  = urls
-        self.edit  = edit
+    def __init__(self, web, urls):
+        self.urls = urls
+        self.web = web
 
     def connectionMade(self):
         print 'Connected.'
@@ -32,30 +39,34 @@ class TwistzillaClient(http.HTTPClient):
 
     def handleResponse(self, data):
         print 'Got response.'
-        self.edit.setText(data)
+        self.web.setHtml(data)
 
 
 
-class TwistzillaWindow(QMainWindow):
+class TwistzillaWindow(QtGui.QMainWindow):
     def __init__(self, *args):
-        QMainWindow.__init__(self, *args)
+        QtGui.QMainWindow.__init__(self, *args)
 
-        self.setCaption("Twistzilla")
+        self.centralwidget = QtGui.QWidget(self)
 
-        vbox = QVBox(self)
+        vbox = QtGui.QVBoxLayout(self.centralwidget)
+
+        hbox = QtGui.QHBoxLayout()
+        label = QtGui.QLabel("Address: ")
+        self.line  = QtGui.QLineEdit("http://www.twistedmatrix.com/")
+        self.connect(self.line, SIGNAL('returnPressed()'), self.fetchURL)
+        hbox.addWidget(label)
+        hbox.addWidget(self.line)
+
+        self.web = QWebView()
+
+        vbox.addLayout(hbox)
+        vbox.addWidget(self.web)
         vbox.setMargin(2)
         vbox.setSpacing(3)
 
-        hbox = QHBox(vbox)
-        label = QLabel("Address: ", hbox)
+        self.setCentralWidget(self.centralwidget)
 
-        self.line  = QLineEdit("http://www.twistedmatrix.com/", hbox)
-        self.connect(self.line, SIGNAL('returnPressed()'), self.fetchURL)
-
-        self.edit = QMultiLineEdit(vbox)
-        self.edit.setEdited(0)
-
-        self.setCentralWidget(vbox)
 
     def fetchURL(self):
         u = urlparse.urlparse(str(self.line.text()))
@@ -74,25 +85,16 @@ class TwistzillaWindow(QMainWindow):
 
         print 'Connecting to.'
         from twisted.internet import reactor
-        protocol.ClientCreator(reactor, TwistzillaClient, self.edit, (host, port, file)).connectTCP(host, port)
+        protocol.ClientCreator(reactor, TwistzillaClient, self.web, (host, port, file)).connectTCP(host, port)
 
 
 def main():
     """Run application."""
-    # hook up Qt application to Twisted
-    from twisted.internet import reactor
-    
     win = TwistzillaWindow()
     win.show()
 
-    # make sure stopping twisted event also shuts down QT
-    reactor.addSystemEventTrigger('after', 'shutdown', app.quit )
-
-    # shutdown twisted when window is closed
-    app.connect(app, SIGNAL("lastWindowClosed()"), reactor.stop)
-
+    from twisted.internet import reactor
     reactor.run()
-
 
 if __name__ == '__main__':
     main()
