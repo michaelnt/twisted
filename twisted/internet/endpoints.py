@@ -247,6 +247,43 @@ class TCP4ClientEndpoint(object):
 
 
 
+class SerialClientEndpoint(object):
+    """
+    Serial client endpoint with a Serial configuration.
+
+    @ivar _reactor: An L{IReactorTCP} provider.
+
+    @type _port: string
+    @ivar _port: The serial port to connect to as C{str}
+    """
+    implements(interfaces.IStreamClientEndpoint)
+
+    def __init__(self, reactor, port):
+        """
+        @param reactor: An L{IReactorTCP} provider
+        @param port: The port number, used when connecting
+        """
+        self._reactor = reactor
+        self._port = port
+
+
+    def connect(self, protocolFactory):
+        """
+        Implement L{IStreamClientEndpoint.connect} to connect via Serial.
+        """
+        def _canceller(deferred):
+            connector.stopConnecting()
+            deferred.errback(
+                error.ConnectingCancelledError(connector.getDestination()))
+
+        try:
+            wf = _WrappingFactory(protocolFactory, _canceller)
+            connector = serialport.SerialPort(wf, self.port, self._reactor)
+            return wf._onConnection
+        except:
+            return defer.fail()
+
+
 class SSL4ServerEndpoint(object):
     """
     SSL secured TCP server endpoint with an IPv4 configuration.
@@ -661,6 +698,7 @@ _endpointClientFactories = {
     'TCP': TCP4ClientEndpoint,
     'SSL': SSL4ClientEndpoint,
     'UNIX': UNIXClientEndpoint,
+    'SERIAL': SerialClientEndpoint,
     }
 
 
@@ -946,10 +984,33 @@ def _parseClientUNIX(**kwargs):
         pass
     return kwargs
 
+
+
+def _parseClientSerial(**kwargs):
+    """
+    Valid keyword arguments to this function are all L{IReactorUNIX.connectUNIX}
+    arguments except for C{checkPID}.  Instead, C{lockfile} is accepted and has
+    the same meaning.
+
+    @return: The coerced values as a C{dict}.
+
+    protocol, deviceNameOrPortNumber, reactor
+    """
+    try:
+        kwargs['checkPID'] = bool(int(kwargs.pop('lockfile')))
+    except KeyError:
+        pass
+    try:
+        kwargs['timeout'] = int(kwargs['timeout'])
+    except KeyError:
+        pass
+    return kwargs
+
 _clientParsers = {
     'TCP': _parseClientTCP,
     'SSL': _parseClientSSL,
     'UNIX': _parseClientUNIX,
+    'SERIAL': _parseClientSerial,
     }
 
 
