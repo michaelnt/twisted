@@ -17,6 +17,7 @@ import types
 import socket
 import sys
 import operator
+import warnings
 
 from zope.interface import implements, classImplements
 
@@ -26,7 +27,7 @@ except ImportError:
     SSL = None
 
 from twisted.python.runtime import platformType
-
+from twisted.python import versions, deprecate
 
 if platformType == 'win32':
     # no such thing as WSAEPERM or error code 10001 according to winsock.h or MSDN
@@ -457,8 +458,14 @@ class Connection(abstract.FileDescriptor, _SocketCloser):
                 return main.CONNECTION_LOST
         if not data:
             return main.CONNECTION_DONE
-        return self.protocol.dataReceived(data)
-
+        rval = self.protocol.dataReceived(data)
+        if rval:
+            warningFormat = 'Returning a value other than None from %(fqpn)s was deprecated in %(version)s'
+            warningString = deprecate.getDeprecationWarningString(self.protocol.dataReceived, 
+                                                                  versions.Version('twisted', 11, 0, 0),
+                                                                  format = warningFormat)
+            warnings.warn(warningString, category=DeprecationWarning, stacklevel=2)
+        return rval
 
     def writeSomeData(self, data):
         """
