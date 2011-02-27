@@ -460,12 +460,17 @@ class Connection(abstract.FileDescriptor, _SocketCloser):
             return main.CONNECTION_DONE
         rval = self.protocol.dataReceived(data)
         if rval:
-            warningFormat = 'Returning a value other than None from %(fqpn)s was deprecated in %(version)s'
-            warningString = deprecate.getDeprecationWarningString(self.protocol.dataReceived, 
-                                                                  versions.Version('twisted', 11, 0, 0),
-                                                                  format = warningFormat)
-            warnings.warn(warningString, category=DeprecationWarning, stacklevel=2)
+            warningFormat = (
+                'Returning a value other than None from %(fqpn)s was '
+                'deprecated in %(version)s')
+            warningString = deprecate.getDeprecationWarningString(
+                self.protocol.dataReceived,
+                versions.Version('twisted', 11, 0, 0),
+                format=warningFormat)
+            warnings.warn(
+                warningString, category=DeprecationWarning, stacklevel=2)
         return rval
+
 
     def writeSomeData(self, data):
         """
