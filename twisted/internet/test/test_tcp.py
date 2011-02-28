@@ -108,7 +108,7 @@ class FakeSocket(object):
     A Fake Socket object
     """
     fileno = 1
-    
+
     def __init__(self, data):
         self.data = data
 
