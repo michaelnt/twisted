@@ -142,26 +142,35 @@ class FakeProtocol(Protocol):
     An L{IProtocol} that returns a value from its dataReceived method.
     """
     def dataReceived(self, data):
-        return "Returning something I shouldn't"
+        """
+        Return something other than C{None} to trigger a deprecation warning for
+        that behavior.
+        """
+        return ()
 
 
 
-class TestTCPConnection(TestCase):
+class TCPConnectionTests(TestCase):
     """
-    Test that an L{IProtocol} that returns a value from its dataReceived method raises a deprecated warning
+    Whitebox tests for L{twisted.internet.tcp.Connection}.
     """
     def test_doReadWarningIsRaised(self):
+        """
+        When an L{IProtocol} implementation that returns a value from its
+        C{dataReceived} method, a deprecated warning is emitted.
+        """
         skt = FakeSocket("someData")
         protocol = FakeProtocol()
         conn = Connection(skt, protocol)
         conn.doRead()
-        warnings = self.flushWarnings([self.test_doReadWarningIsRaised])
+        warnings = self.flushWarnings([FakeProtocol.dataReceived])
         self.assertEquals(warnings[0]['category'], DeprecationWarning)
         self.assertEquals(
             warnings[0]["message"],
-            "Returning a value other than None from twisted.internet.test.test_tcp.FakeProtocol.dataReceived was deprecated in Twisted 11.0.0")
+            "Returning a value other than None from "
+            "twisted.internet.test.test_tcp.FakeProtocol.dataReceived "
+            "is deprecated since Twisted 11.0.0.")
         self.assertEquals(len(warnings), 1)
-
 
 
 

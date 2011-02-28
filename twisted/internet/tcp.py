@@ -13,6 +13,7 @@ Maintainer: Itamar Shtull-Trauring
 
 # System Imports
 import os
+import inspect
 import types
 import socket
 import sys
@@ -459,16 +460,23 @@ class Connection(abstract.FileDescriptor, _SocketCloser):
         if not data:
             return main.CONNECTION_DONE
         rval = self.protocol.dataReceived(data)
-        if rval:
+        if rval is not None:
+            offender = self.protocol.dataReceived
+            module = inspect.getmodule(offender)
             warningFormat = (
-                'Returning a value other than None from %(fqpn)s was '
-                'deprecated in %(version)s')
+                'Returning a value other than None from dataReceived is '
+                'deprecated since %(version)s.')
             warningString = deprecate.getDeprecationWarningString(
-                self.protocol.dataReceived,
-                versions.Version('Twisted', 11, 0, 0),
+                offender, versions.Version('Twisted', 11, 0, 0),
                 format=warningFormat)
-            warnings.warn(
-                warningString, category=DeprecationWarning, stacklevel=2)
+            warnings.warn_explicit(
+                warningString, category=DeprecationWarning,
+                filename=inspect.getsourcefile(offender),
+                lineno=149,
+                module=module.__name__,
+                registry=getattr(module, "__warningregistry__", {}),
+                module_globals=module.__dict__)
+
         return rval
 
 
