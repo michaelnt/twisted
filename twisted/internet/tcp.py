@@ -465,7 +465,7 @@ class Connection(abstract.FileDescriptor, _SocketCloser):
                 'deprecated in %(version)s')
             warningString = deprecate.getDeprecationWarningString(
                 self.protocol.dataReceived,
-                versions.Version('twisted', 11, 0, 0),
+                versions.Version('Twisted', 11, 0, 0),
                 format=warningFormat)
             warnings.warn(
                 warningString, category=DeprecationWarning, stacklevel=2)

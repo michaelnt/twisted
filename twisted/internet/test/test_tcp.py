@@ -159,7 +159,7 @@ class TestTCPConnection(TestCase):
         self.assertEquals(warnings[0]['category'], DeprecationWarning)
         self.assertEquals(
             warnings[0]["message"],
-            "Returning a value other than None from twisted.internet.test.test_tcp.FakeProtocol.dataReceived was deprecated in twisted 11.0.0")
+            "Returning a value other than None from twisted.internet.test.test_tcp.FakeProtocol.dataReceived was deprecated in Twisted 11.0.0")
         self.assertEquals(len(warnings), 1)
 
 
