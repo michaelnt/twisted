@@ -34,7 +34,7 @@ def dummyCallable():
 def dummyReplacementMethod():
     """
     Do nothing.
-    
+
     This is used to test the replacement parameter to L{deprecated}.
     """
 
