@@ -475,9 +475,10 @@ def warnAboutFunction(offender, warningString):
         category=DeprecationWarning,
         filename=filename,
         lineno=lastLineNo,
-        module=offenderModule.__name__,
-        registry=getattr(offenderModule, "__warningregistry__", {}),
-        module_globals=offenderModule.__dict__)
+        module='', # offenderModule.__name__,
+        registry={}, # getattr(offenderModule, "__warningregistry__", {}),
+        module_globals={}, # offenderModule.__dict__
+        )
 
     if sys.version < (2, 5):
         kwargs.pop('module_globals')
