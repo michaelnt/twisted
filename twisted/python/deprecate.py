@@ -451,36 +451,34 @@ def deprecatedModuleAttribute(version, message, moduleName, name):
     _deprecateAttribute(module, name, version, message)
 
 
-def deprecateFunction(offender, warningString):
+def warnAboutFunction(offender, warningString):
     """
-    Declare a Function Deprecated.
+    Issue a warning string, identifying C{offender} as the responsible code.
 
-    This function is used by the caller of a function to deprecate a
-    function at runtime depending on the return value. The warning
-    that is issued refers to the function being deprecated rather than
-    the function doing the deprecating.
+    This function is used to deprecate some behavior of a function.  It differs
+    from L{warnings.warn} in that it is not limited to deprecating the behavior
+    of a function currently on the call stack.
 
-    @type function: C{object}
-    @param function: The callable that is being deprecated.
+    @param function: The function that is being deprecated.
 
+    @param warningString: The string that should be emitted by this warning.
     @type warningString: C{str}
-    @param warningString: The string that should be emitted by this warning
     """
     # inspect.getmodule() is attractive, but somewhat
     # broken in Python < 2.6.  See Python bug 4845.
-
     offenderModule = sys.modules[offender.__module__]
     filename = inspect.getabsfile(offenderModule)
     lineStarts = list(findlinestarts(offender.func_code))
     lastLineNo = lineStarts[-1][1]
 
-    kwargs = dict(category=DeprecationWarning,
+    kwargs = dict(
+        category=DeprecationWarning,
         filename=filename,
         lineno=lastLineNo,
         module=offenderModule.__name__,
         registry=getattr(offenderModule, "__warningregistry__", {}),
         module_globals=offenderModule.__dict__)
 
-    if sys.version < (2,5):
+    if sys.version < (2, 5):
         kwargs.pop('module_globals')
     warn_explicit(warningString, **kwargs)

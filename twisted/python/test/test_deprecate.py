@@ -517,10 +517,11 @@ deprecatedModuleAttribute(
         self.assertEquals(len(warnings), 1)
 
 
-class TestDeprecateFunction(TestCase):
+
+class WarnAboutFunctionTests(TestCase):
     """
-    Tests for L{twisted.python.deprecate.deprecateFunction} which
-    allows the callers of a function to issue a C{DeprecationWarning}.
+    Tests for L{twisted.python.deprecate.warnAboutFunction} which allows the
+    callers of a function to issue a C{DeprecationWarning} about that function.
     """
     def setUp(self):
         """
@@ -542,16 +543,21 @@ def testFunction():
 def callTestFunction():
     b = testFunction()
     if b == 3:
-        deprecate.deprecateFunction(testFunction, "A Warning String")
+        deprecate.warnAboutFunction(testFunction, "A Warning String")
 ''')
         sys.path.insert(0, self.package.parent().path)
         self.addCleanup(sys.path.remove, self.package.parent().path)
 
 
     def test_warning(self):
+        """
+        L{deprecate.warnAboutFunction} emits a warning the file and line number
+        of which point to the beginning of the implementation of the function
+        passed to it.
+        """
         def aFunc():
             pass
-        deprecate.deprecateFunction(aFunc, 'A Warning Message')
+        deprecate.warnAboutFunction(aFunc, 'A Warning Message')
         warnings = self.flushWarnings()
         filename = __file__
         if filename.lower().endswith('.pyc'):
@@ -559,16 +565,20 @@ def callTestFunction():
         self.assertEquals(warnings[0]["filename"], filename)
         self.assertEquals(warnings[0]["message"], "A Warning Message")
 
-    def test_warning_lineno(self):
+
+    def test_warningLineNumber(self):
         """
-        L{twisted.python.deprecate.deprecateFunction} should emit a
-        C{DeprecationWarning} with a lineno of 9 rather than a lineno
-        of 12.
+        L{deprecate.warnAboutFunction} emits a C{DeprecationWarning} with the
+        number of a line within the implementation of the function passed to it.
         """
         from twisted_private_helper import module
         module.callTestFunction()
         warnings = self.flushWarnings()
-        self.assertEquals(warnings[0]["filename"], self.package.dirname()+'/twisted_private_helper/module.py')
+        self.assertEquals(
+            warnings[0]["filename"],
+            self.package.dirname() + '/twisted_private_helper/module.py')
+        # Line number 9 is the last line in the testFunction in the helper
+        # module.
         self.assertEquals(warnings[0]["lineno"], 9)
         self.assertEquals(warnings[0]["message"], "A Warning String")
         self.assertEquals(len(warnings), 1)
@@ -576,9 +586,10 @@ def callTestFunction():
 
     def test_renamedFile(self):
         """
-        L{twisted.python.deprecate.deprecateFunction} should emit a
-        C{DeprecationWarning} with a lineno of 9 rather than a lineno
-        of 12.
+        Even if the implementation of a deprecated function is moved around on
+        the filesystem, the line number in the warning emitted by
+        L{deprecate.warnAboutFunction} points to a line in the implementation of
+        the deprecated function.
         """
         from twisted_private_helper import module
         # Clean up the state resulting from that import; we're not going to use
@@ -596,8 +607,9 @@ def callTestFunction():
 
         module.callTestFunction()
         warnings = self.flushWarnings()
-        self.assertEquals(warnings[0]["filename"], self.package.dirname()+'/twisted_renamed_helper/module.py')
+        self.assertEquals(
+            warnings[0]["filename"],
+            self.package.dirname() + '/twisted_renamed_helper/module.py')
         self.assertEquals(warnings[0]["lineno"], 9)
         self.assertEquals(warnings[0]["message"], "A Warning String")
         self.assertEquals(len(warnings), 1)
-
