@@ -467,7 +467,7 @@ class Connection(abstract.FileDescriptor, _SocketCloser):
             warningString = deprecate.getDeprecationWarningString(
                 offender, versions.Version('Twisted', 11, 0, 0),
                 format=warningFormat)
-            deprecate.deprecateFunction(offender, warningString)
+            deprecate.warnAboutFunction(offender, warningString)
         return rval
 
 
