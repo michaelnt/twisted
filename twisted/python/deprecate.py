@@ -470,16 +470,18 @@ def warnAboutFunction(offender, warningString):
     filename = inspect.getabsfile(offenderModule)
     lineStarts = list(findlinestarts(offender.func_code))
     lastLineNo = lineStarts[-1][1]
+    globals = offender.func_globals
 
     kwargs = dict(
         category=DeprecationWarning,
         filename=filename,
         lineno=lastLineNo,
-        module='', # offenderModule.__name__,
-        registry={}, # getattr(offenderModule, "__warningregistry__", {}),
-        module_globals={}, # offenderModule.__dict__
+        module=offenderModule.__name__,
+        registry=globals.setdefault("__warningregistry__", {}),
+        module_globals=None,
         )
 
-    if sys.version < (2, 5):
+    if sys.version_info[:2] < (2, 5):
         kwargs.pop('module_globals')
+
     warn_explicit(warningString, **kwargs)

@@ -6,6 +6,9 @@ Tests for Twisted's deprecation framework, L{twisted.python.deprecate}.
 """
 
 import sys, types
+import warnings
+import zipfile
+import linecache
 
 from twisted.trial.unittest import TestCase
 
@@ -513,8 +516,8 @@ deprecatedModuleAttribute(
         # make sure it's the right module.
         self.assertEquals(module.__file__.rsplit(".", 1)[0],
                           package.child('module.py').path.rsplit(".", 1)[0])
-        warnings = self.flushWarnings([self.test_deprecatedModule])
-        self.assertEquals(len(warnings), 1)
+        warningsShown = self.flushWarnings([self.test_deprecatedModule])
+        self.assertEquals(len(warningsShown), 1)
 
 
 
@@ -558,12 +561,12 @@ def callTestFunction():
         def aFunc():
             pass
         deprecate.warnAboutFunction(aFunc, 'A Warning Message')
-        warnings = self.flushWarnings()
+        warningsShown = self.flushWarnings()
         filename = __file__
         if filename.lower().endswith('.pyc'):
             filename = filename[:-1]
-        self.assertEquals(warnings[0]["filename"], filename)
-        self.assertEquals(warnings[0]["message"], "A Warning Message")
+        self.assertEquals(warningsShown[0]["filename"], filename)
+        self.assertEquals(warningsShown[0]["message"], "A Warning Message")
 
 
     def test_warningLineNumber(self):
@@ -573,15 +576,15 @@ def callTestFunction():
         """
         from twisted_private_helper import module
         module.callTestFunction()
-        warnings = self.flushWarnings()
+        warningsShown = self.flushWarnings()
         self.assertEquals(
-            warnings[0]["filename"],
+            warningsShown[0]["filename"],
             self.package.dirname() + '/twisted_private_helper/module.py')
         # Line number 9 is the last line in the testFunction in the helper
         # module.
-        self.assertEquals(warnings[0]["lineno"], 9)
-        self.assertEquals(warnings[0]["message"], "A Warning String")
-        self.assertEquals(len(warnings), 1)
+        self.assertEquals(warningsShown[0]["lineno"], 9)
+        self.assertEquals(warningsShown[0]["message"], "A Warning String")
+        self.assertEquals(len(warningsShown), 1)
 
 
     def test_renamedFile(self):
@@ -606,10 +609,65 @@ def callTestFunction():
         self.addCleanup(sys.modules.pop, module.__name__)
 
         module.callTestFunction()
-        warnings = self.flushWarnings()
+        warningsShown = self.flushWarnings()
         self.assertEquals(
-            warnings[0]["filename"],
+            warningsShown[0]["filename"],
             self.package.dirname() + '/twisted_renamed_helper/module.py')
-        self.assertEquals(warnings[0]["lineno"], 9)
-        self.assertEquals(warnings[0]["message"], "A Warning String")
-        self.assertEquals(len(warnings), 1)
+        self.assertEquals(warningsShown[0]["lineno"], 9)
+        self.assertEquals(warningsShown[0]["message"], "A Warning String")
+        self.assertEquals(len(warningsShown), 1)
+
+
+    def test_filtered_warning(self):
+        """
+        L{deprecate.warnAboutFunction} emits a warning that will be
+        filtered if L{warnings.filterwarning} is called with the
+        module name of the deprecated function.
+        """
+        
+        # must remove the warnings.simplefilter("always") that 
+        # unittest._collectWarnings adds otherwise we can't filter
+        # a warning
+        always_simplefilter = warnings.filters.pop(0)  
+        self.assertEquals(always_simplefilter, ("always", None, Warning, None, 0))
+        self.addCleanup(warnings.filters.insert, 0, always_simplefilter)
+
+        warnings.filterwarnings(action="ignore", module="twisted_private_helper", append=True)
+        self.addCleanup(warnings.filters.pop)
+
+        from twisted_private_helper import module
+        module.callTestFunction()
+        
+        warningsShown = self.flushWarnings()
+        self.assertEquals(len(warningsShown), 0)
+
+
+    def test_filtered_once_warning(self):
+        """
+        L{deprecate.warnAboutFunction} emits a warning that will be
+        filtered once if L{warnings.filterwarning} is called with the
+        module name of the deprecated function and an action of once.
+        """
+        
+        # must remove the warnings.simplefilter("always") that 
+        # unittest._collectWarnings adds otherwise we can't filter
+        # a warning
+        always_simplefilter = warnings.filters.pop(0)  
+        self.assertEquals(always_simplefilter, ("always", None, Warning, None, 0))
+        self.addCleanup(warnings.filters.insert, 0, always_simplefilter)
+
+        warnings.filterwarnings(action="module", module="twisted_private_helper", append=True)
+        self.addCleanup(warnings.filters.pop)
+
+        from twisted_private_helper import module
+        module.callTestFunction()
+        module.callTestFunction()
+        
+        warningsShown = self.flushWarnings()
+        self.assertEquals(len(warningsShown), 1)
+        message = warningsShown[0]['message']
+        category = warningsShown[0]['category']
+        filename = warningsShown[0]['filename']
+        lineno = warningsShown[0]['lineno']
+        msg = warnings.formatwarning(message, category, filename, lineno)
+
