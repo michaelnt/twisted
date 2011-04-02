@@ -39,17 +39,18 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
     """
 
     connected = 1
-    SerialClass = serial.Serial
+    serialFactory = serial.Serial
 
     def __init__(self, protocol, deviceNameOrPortNumber, reactor, 
-        baudrate = 9600, bytesize = EIGHTBITS, parity = PARITY_NONE,
-        stopbits = STOPBITS_ONE, xonxoff = 0, rtscts = 0):
+                 baudrate=9600, bytesize=EIGHTBITS, parity=PARITY_NONE,
+                 stopbits=STOPBITS_ONE, xonxoff=0, rtscts=0):
+
         abstract.FileDescriptor.__init__(self, reactor)
 
-        self._serial = self.SerialClass(deviceNameOrPortNumber, baudrate=baudrate,
-                                     bytesize=bytesize, parity=parity,
-                                     stopbits=stopbits, timeout=None,
-                                     xonxoff=xonxoff, rtscts=rtscts)
+        self._serial = self.serialFactory(deviceNameOrPortNumber, baudrate=baudrate,
+                                          bytesize=bytesize, parity=parity,
+                                          stopbits=stopbits, timeout=None,
+                                          xonxoff=xonxoff, rtscts=rtscts)
         self.flushInput()
         self.flushOutput()
         self.outQueue = []
@@ -63,13 +64,14 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
 
     def startReading(self):
         """
-        Create and issue an overlapped Read
+        Create and issue an overlapped read that will call serialReadEvent when
+        data is ready to read.
         """
         self._overlappedRead = win32file.OVERLAPPED()
         self._overlappedRead.hEvent = win32event.CreateEvent(None, 1, 0, None)
         self.reactor.addEvent(self._overlappedRead.hEvent, self, 'serialReadEvent')
 
-        # Ask for a read and fire the event once the read has occured
+        # Ask for a read and that will fire the event once the read has occured
         rc, self.read_buf = win32file.ReadFile(self._serial.hComPort,
                                                win32file.AllocateReadBuffer(READBUF_SIZE),
                                                self._overlappedRead)
@@ -77,7 +79,8 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
 
     def startWriting(self):
         """
-        Create the overlapped Write Structures.
+        Create the overlapped write that will call doWrite when the write has
+        occured.
         """
         self._overlappedWrite = win32file.OVERLAPPED()
         self._overlappedWrite.hEvent = win32event.CreateEvent(None, 0, 0, None)
@@ -86,21 +89,19 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
 
     def serialReadEvent(self):
         """
-        A read event has occured.
+        Data is available for reading
         """
         try:
-            n = win32file.GetOverlappedResult(self._serial.hComPort, self._overlappedRead, 0)
+            bytesReceived = win32file.GetOverlappedResult(self._serial.hComPort, self._overlappedRead, 0)
         except pywintypes.error as e:
             self.connectionLost(e)
             return
 
-        if n > 0:
-            # Read the data from the buffer before the buffer is reset.
-            data = str(self.read_buf[:n])  
+        if bytesReceived > 0:
+            data = str(self.read_buf[:bytesReceived])  
             self.protocol.dataReceived(data)
 
-        # The read operation has completed and n bytes have been read 
-        # into the buffer. Set up the next read operation
+        # Set up the next read operation
         win32event.ResetEvent(self._overlappedRead.hEvent)
         try:
             rc, self.read_buf = win32file.ReadFile(
@@ -134,17 +135,16 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
 
         return True if file closed.
         '''
-        n = win32file.GetOverlappedResult(self._serial.hComPort, 
-                                          self._overlappedWrite, 
-                                          1)
-        if n==0:
+        bytesTransmitted = win32file.GetOverlappedResult(self._serial.hComPort, 
+                                                      self._overlappedWrite, 
+                                                      1)
+        if not bytesTransmitted:
             # Write Failed
             return True
         else:
             self.writeInProgress = False
-            if len(self.outQueue)> 0:
+            if self.outQueue:
                 self.writeSomeData(self.outQueue.pop())
-
             return False
 
 

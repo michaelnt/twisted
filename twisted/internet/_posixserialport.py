@@ -22,12 +22,17 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
     """
 
     connected = 1
-    SerialClass = serial.Serial
+    serialFactory = serial.Serial
+
     def __init__(self, protocol, deviceNameOrPortNumber, reactor, 
-        baudrate = 9600, bytesize = EIGHTBITS, parity = PARITY_NONE,
-        stopbits = STOPBITS_ONE, timeout = 0, xonxoff = 0, rtscts = 0):
+                 baudrate=9600, bytesize=EIGHTBITS, parity=PARITY_NONE,
+                 stopbits=STOPBITS_ONE, timeout=0, xonxoff=0, rtscts=0):
+
         abstract.FileDescriptor.__init__(self, reactor)
-        self._serial = self.SerialClass(deviceNameOrPortNumber, baudrate = baudrate, bytesize = bytesize, parity = parity, stopbits = stopbits, timeout = timeout, xonxoff = xonxoff, rtscts = rtscts)
+        self._serial = self.serialFactory(deviceNameOrPortNumber, baudrate=baudrate,
+                                        bytesize=bytesize, parity=parity,
+                                        stopbits=stopbits, timeout=timeout, 
+                                        xonxoff=xonxoff, rtscts=rtscts)
         self.reactor = reactor
         self.flushInput()
         self.flushOutput()
@@ -35,8 +40,10 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         self.protocol.makeConnection(self)
         self.startReading()
 
+
     def fileno(self):
         return self._serial.fd
+
 
     def writeSomeData(self, data):
         """
@@ -44,11 +51,13 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         """
         return fdesc.writeToFD(self.fileno(), data)
 
+
     def doRead(self):
         """
         Some data's readable from serial device.
         """
         return fdesc.readFromFD(self.fileno(), self.protocol.dataReceived)
+
 
     def connectionLost(self, reason):
         abstract.FileDescriptor.connectionLost(self, reason)

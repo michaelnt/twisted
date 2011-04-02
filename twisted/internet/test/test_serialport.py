@@ -17,25 +17,16 @@ import os
 import socket
 import sys
 from twisted.internet.interfaces import IReactorFDSet, IReactorWin32Events
-from twisted.internet.error import ConnectionDone
 from twisted.internet.defer import Deferred
 from twisted.internet.test.reactormixins import ReactorBuilder
 from twisted.trial.unittest import SkipTest
 from twisted.test.test_tcp import ConnectionLostNotifyingProtocol
 from twisted.python.runtime import platformType
-from twisted.internet.address import UNIXAddress
-from twisted.internet.protocol import Protocol, ServerFactory, Factory, ConnectedDatagramProtocol, ClientFactory
-from twisted.python.hashlib import md5
-from twisted.internet.serialport import SerialPort
-from twisted.internet import abstract, fdesc
+from twisted.internet.protocol import Protocol, ServerFactory
 from twisted.protocols.wire import Echo
-from twisted.internet import main
-from twisted.python import failure, log
-from twisted.internet.tcp import EINPROGRESS, EWOULDBLOCK
+from twisted.python import log
 
 import serial
-from serial import EIGHTBITS, PARITY_NONE, STOPBITS_ONE
-
 
 
 class _MockPosixSerial(serial.Serial):
@@ -66,15 +57,15 @@ class _MockWindowsSerial(object):
 
 
 class _MockPosixSerialPort(SerialPort):
-    SerialClass = _MockPosixSerial
+    serialFactory = _MockPosixSerial
 
 
 class _MockWindowsSerialPort(SerialPort):
-    SerialClass = _MockWindowsSerial
+    serialFactory = _MockWindowsSerial
 
 
 class _MockWindowsEchoPort(SerialPort):
-    SerialClass = _MockWindowsSerial
+    serialFactory = _MockWindowsSerial
     def slaveConnected(self):
         log.msg('Slave Connected')
         import win32file, win32event, win32pipe
@@ -171,25 +162,25 @@ class SerialPortTestsBuilder(ReactorBuilder):
         import win32event, win32pipe, win32file, win32api, winerror
 
         pipeName = r"\\.\pipe\serialport"
-        self.master = win32pipe.CreateNamedPipe(pipeName, 
-                                      win32pipe.PIPE_ACCESS_DUPLEX|
-                                      win32file.FILE_FLAG_OVERLAPPED,  # Open Mode
-                                      win32pipe.PIPE_TYPE_MESSAGE|
-                                      win32pipe.PIPE_NOWAIT,         # Pipe Mode
-                                      1,                             # Max Instances
-                                      6536,                          # OutBufferSize
-                                      6536,                          # InBufferSize
-                                      1,                             # DefaultTimeOut
-                                      None                           # Security Attributes
-                                      )
+        self.master = win32pipe.CreateNamedPipe(
+            pipeName, 
+            win32pipe.PIPE_ACCESS_DUPLEX | win32file.FILE_FLAG_OVERLAPPED,  # Open Mode
+            win32pipe.PIPE_TYPE_MESSAGE | win32pipe.PIPE_NOWAIT,         # Pipe Mode
+            1,                             # Max Instances
+            6536,                          # OutBufferSize
+            6536,                          # InBufferSize
+            1,                             # DefaultTimeOut
+            None                           # Security Attributes
+            )
 
-        self.slave1 = win32file.CreateFile(pipeName,
-                                          win32file.GENERIC_READ | win32file.GENERIC_WRITE,
-                                          win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
-                                          None,
-                                          win32file.OPEN_EXISTING,
-                                          win32file.FILE_FLAG_OVERLAPPED|win32file.FILE_ATTRIBUTE_NORMAL,
-                                          None)
+        self.slave1 = win32file.CreateFile(
+            pipeName,
+            win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+            win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+            None,
+            win32file.OPEN_EXISTING,
+            win32file.FILE_FLAG_OVERLAPPED | win32file.FILE_ATTRIBUTE_NORMAL,
+            None)
         
         serialPort = _MockWindowsSerialPort(protocol, self.slave1, self.reactor)
 
