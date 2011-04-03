@@ -119,6 +119,7 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         '''
         if self.writeInProgress:
             self.outQueue.append(data)
+            log.msg('Appending data outQueue = %r' % self.outQueue)
         else:
             self._pendingData = data
             self.writeInProgress = 1

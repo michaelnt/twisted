@@ -65,7 +65,9 @@ class _MockWindowsSerialPort(SerialPort):
 
 
 class _MockWindowsEchoPort(SerialPort):
+
     serialFactory = _MockWindowsSerial
+
     def slaveConnected(self):
         log.msg('Slave Connected')
         import win32file, win32event, win32pipe
@@ -73,6 +75,7 @@ class _MockWindowsEchoPort(SerialPort):
         self._overlappedRead.hEvent = win32event.CreateEvent(None, 1, 0, None)
         self.reactor.addEvent(self._overlappedRead.hEvent, self, 'serialReadEvent')
         win32event.SetEvent(self._overlappedRead.hEvent)
+
 
     def startReading(self):
         log.msg('startReading')
@@ -89,21 +92,105 @@ class _MockWindowsEchoPort(SerialPort):
             self.slaveConnected()
         else:
             log.msg('ConnectNamedPipe returned %d' % rc)
+
         
 
 class NotifyOnRecevied(Protocol):
     """
     Fire a C{Deferred} with the  L{IProtocol.dataReceived} is called
     """
+
     def __init__(self, deferred):
         self.deferred = deferred
+
 
     def dataReceived(self, data):
         self.deferred.callback(data)
 
 
+class AccumulatingProtocol(Protocol):
+    """
+    Fire a C{Deferred} with the  L{IProtocol.dataReceived} is called
+    """
 
-class SerialPortTestsBuilder(ReactorBuilder):
+    def __init__(self, deferred, expectedNumberOfReads):
+        self.deferred = deferred
+        self.dataReceivedList = []
+        self.expectedNumberOfReads = expectedNumberOfReads
+
+
+    def dataReceived(self, data):
+        self.dataReceivedList.append(data)
+        log.msg('dataReceivedList = %r' % self.dataReceivedList)
+        if len(self.dataReceivedList) >= self.expectedNumberOfReads:
+            self.deferred.callback(self.dataReceivedList)
+
+
+class SerialPortTests(object):
+    def testLoseConnection(self):
+        """
+        The serial port transport implementation of C{loseConnection}
+        causes the serial port to be closed and the protocol's
+        C{connectionLost} method to be called with a L{Failure}
+        wrapping L{ConnectionDone}.
+        """
+        onConnectionLost = Deferred()
+        protocol = ConnectionLostNotifyingProtocol(onConnectionLost)
+        port = self.serialFactory(protocol, self.reactor)
+
+        def cbConnLost(ignored):
+            self.reactor.stop()
+        onConnectionLost.addCallback(cbConnLost)
+
+        port.loseConnection()
+        
+        self.runReactor(self.reactor)
+    testLoseConnection.timeout = 2
+
+
+    def testLoopback(self):
+        """
+        L{SerialPort.writeSomeData} should write data to a ptty. Data
+        written to this ptty should cause L{IProtocol.dataReceived} to
+        be called with this data.
+        """
+        d = Deferred()
+        protocol = NotifyOnRecevied(d)
+        serial = self.serialFactory(protocol, self.reactor)
+        serial.write("Send A String")
+
+        def check(data):
+            self.assertEquals(data, "Send A String")
+            self.reactor.stop()
+        d.addCallbacks(check, check)
+
+        self.runReactor(self.reactor)
+    testLoopback.timeout=2
+
+
+    def testMultipleWrites(self):
+        """
+        L{SerialPort.writeSomeData} should write data to a ptty. Data
+        written to this ptty should cause L{IProtocol.dataReceived} to
+        be called with this data.
+        """
+        d = Deferred()
+        protocol = NotifyOnRecevied(d)
+        serial = self.serialFactory(protocol, self.reactor)
+        serial.write("One")
+        serial.write("Two")
+        serial.write("Three")
+
+        def check(data):
+            self.assertEquals(data, "OneTwoThree")
+            self.reactor.stop()
+        d.addCallbacks(check, check)
+
+        self.runReactor(self.reactor)
+    testMultipleWrites.timeout=2
+
+
+class MockSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
     """
     Builder defining tests for L{twisted.internet.serialport}.
 
@@ -191,51 +278,34 @@ class SerialPortTestsBuilder(ReactorBuilder):
         return serialPort
 
 
-    def _serial(self, *args, **kwargs):
-        if os.name == 'posix':
+    def serialFactory(self, *args, **kwargs):
+        if os.name == "posix":
             return self._serial_unix(*args, **kwargs)
-        elif sys.platform == 'win32':
+        elif sys.platform == "win32":
             return self._serial_win(*args, **kwargs)
 
 
-    def test_loseConnection(self):
-        """
-        The serial port transport implementation of C{loseConnection}
-        causes the serial port to be closed and the protocol's
-        C{connectionLost} method to be called with a L{Failure}
-        wrapping L{ConnectionDone}.
-        """
-        onConnectionLost = Deferred()
-        protocol = ConnectionLostNotifyingProtocol(onConnectionLost)
-        port = self._serial(protocol, self.reactor)
+class EchoSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
+    """
+    """
+    def setUp(self):
+        if not os.getenv("TRIALSERIALPORT"):
+            raise SkipTest("environment variable TRIALSERIALPORT not set")
+ 
+        self.reactor = self.buildReactor()
 
-        def cbConnLost(ignored):
-            self.reactor.stop()
-        onConnectionLost.addCallback(cbConnLost)
+        if platformType == "win32" and IReactorWin32Events.providedBy(self.reactor):
+            pass
+        elif platformType != "win32" and IReactorFDSet.providedBy(self.reactor):
+            pass
+        else:
+            raise SkipTest(
+                "Cannot use SerialPort without IReactorFDSet or "
+                "IReactorWin32Events")
 
-        port.loseConnection()
-        
-        self.runReactor(self.reactor)
-    test_loseConnection.timeout = 2
+    
+    def serialFactory(self, *args, **kwargs):
+        return SerialPort(*args, **kwargs)
 
-
-    def test_loopback(self):
-        """
-        L{SerialPort.writeSomeData} should write data to a ptty. Data
-        written to this ptty should cause L{IProtocol.dataReceived} to
-        be called with this data.
-        """
-        d = Deferred()
-        protocol = NotifyOnRecevied(d)
-        serial = self._serial(protocol, self.reactor)
-        serial.write('Send A String')
-
-        def check(data):
-            self.assertEquals(data, 'Send A String')
-            self.reactor.stop()
-        d.addCallbacks(check, check)
-
-        self.runReactor(self.reactor)
-    test_loopback.timeout=2
-
-globals().update(SerialPortTestsBuilder.makeTestCaseClasses())
+globals().update(MockSerialPortTestsBuilder.makeTestCaseClasses())
+globals().update(EchoSerialPortTestsBuilder.makeTestCaseClasses())
