@@ -95,19 +95,6 @@ class _MockWindowsEchoPort(SerialPort):
 
         
 
-class NotifyOnRecevied(Protocol):
-    """
-    Fire a C{Deferred} with the  L{IProtocol.dataReceived} is called
-    """
-
-    def __init__(self, deferred):
-        self.deferred = deferred
-
-
-    def dataReceived(self, data):
-        self.deferred.callback(data)
-
-
 class AccumulatingProtocol(Protocol):
     """
     Fire a C{Deferred} with the  L{IProtocol.dataReceived} is called
@@ -115,15 +102,16 @@ class AccumulatingProtocol(Protocol):
 
     def __init__(self, deferred, expectedNumberOfReads):
         self.deferred = deferred
-        self.dataReceivedList = []
+        self.dataReceivedList = ''
         self.expectedNumberOfReads = expectedNumberOfReads
 
 
     def dataReceived(self, data):
-        self.dataReceivedList.append(data)
-        log.msg('dataReceivedList = %r' % self.dataReceivedList)
+        self.dataReceivedList += data
+        log.msg('dataReceived = %r' % data)
         if len(self.dataReceivedList) >= self.expectedNumberOfReads:
             self.deferred.callback(self.dataReceivedList)
+
 
 
 class SerialPortTests(object):
@@ -155,11 +143,13 @@ class SerialPortTests(object):
         be called with this data.
         """
         d = Deferred()
-        protocol = NotifyOnRecevied(d)
+        aMessage = "Send A String"
+        protocol = AccumulatingProtocol(d, len(aMessage))
         serial = self.serialFactory(protocol, self.reactor)
-        serial.write("Send A String")
+        serial.write(aMessage)
 
         def check(data):
+            log.msg('check %s' % data)
             self.assertEquals(data, "Send A String")
             self.reactor.stop()
         d.addCallbacks(check, check)
@@ -175,7 +165,7 @@ class SerialPortTests(object):
         be called with this data.
         """
         d = Deferred()
-        protocol = NotifyOnRecevied(d)
+        protocol = AccumulatingProtocol(d, len('OneTwoThree'))
         serial = self.serialFactory(protocol, self.reactor)
         serial.write("One")
         serial.write("Two")
@@ -188,6 +178,7 @@ class SerialPortTests(object):
 
         self.runReactor(self.reactor)
     testMultipleWrites.timeout=2
+
 
 
 class MockSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
@@ -278,11 +269,12 @@ class MockSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
         return serialPort
 
 
-    def serialFactory(self, *args, **kwargs):
+    def serialFactory(self, protocol, reactor, **kwargs):
         if os.name == "posix":
-            return self._serial_unix(*args, **kwargs)
+            return self._serial_unix(protocol, reactor, **kwargs)
         elif sys.platform == "win32":
-            return self._serial_win(*args, **kwargs)
+            return self._serial_win(protocol, reactor, **kwargs)
+
 
 
 class EchoSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
@@ -304,8 +296,12 @@ class EchoSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
                 "IReactorWin32Events")
 
     
-    def serialFactory(self, *args, **kwargs):
-        return SerialPort(*args, **kwargs)
+    def serialFactory(self, protocol, reactor, **kwargs):
+        deviceNameOrPortNumber = os.getenv("TRIALSERIALPORT")
+        return SerialPort(protocol, deviceNameOrPortNumber, reactor, **kwargs)
+
+
+
 
 globals().update(MockSerialPortTestsBuilder.makeTestCaseClasses())
 globals().update(EchoSerialPortTestsBuilder.makeTestCaseClasses())
