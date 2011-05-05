@@ -130,10 +130,10 @@ class SerialPortTests(object):
         def cbConnLost(ignored):
             self.reactor.stop()
         onConnectionLost.addCallback(cbConnLost)
-
-        port.loseConnection()
         
+        self.reactor.callLater(0, port.loseConnection)
         self.runReactor(self.reactor)
+        
     testLoseConnection.timeout = 2
 
 
