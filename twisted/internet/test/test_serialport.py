@@ -296,11 +296,15 @@ class EchoSerialPortTestsBuilder(ReactorBuilder, SerialPortTests):
                 "Cannot use SerialPort without IReactorFDSet or "
                 "IReactorWin32Events")
 
-    
+
+    def tearDown(self):
+        self.port.loseConnection()
+
+
     def serialFactory(self, protocol, reactor, **kwargs):
         deviceNameOrPortNumber = os.getenv("TRIALSERIALPORT")
-        return SerialPort(protocol, deviceNameOrPortNumber, reactor, **kwargs)
-
+        self.port = SerialPort(protocol, deviceNameOrPortNumber, reactor, **kwargs)
+        return self.port
 
 
 
