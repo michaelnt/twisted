@@ -53,7 +53,7 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
                                           xonxoff=xonxoff, rtscts=rtscts)
         self.flushInput()
         self.flushOutput()
-        self.outQueue = []
+        self.outQueue = ""
         self.writeInProgress = False
 
         self.protocol = protocol
@@ -117,18 +117,17 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         If a write is still in progress then queue the data otherwrite
         write data to the File Descriptor.
         '''
+        log.msg("writeInProgress=%r, outQueue=%r, write %s" % (self.writeInProgress, self.outQueue, data))
         if self.writeInProgress:
-            self.outQueue.append(data)
-            log.msg('Appending data outQueue = %r' % self.outQueue)
+            self.outQueue += data
         else:
-            self._pendingData = data
-            self.writeInProgress = 1
-            # data must not be garbage collected until it has been written
+            self._pendingData = data  #data must not be garbage collected until it has been written
+            self.writeInProgress = True
             win32file.WriteFile(self._serial.hComPort, 
                                 self._pendingData, 
                                 self._overlappedWrite)
 
-        
+
     def doWrite(self):
         '''
         A write has occured.
@@ -137,15 +136,18 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         return True if file closed.
         '''
         bytesTransmitted = win32file.GetOverlappedResult(self._serial.hComPort, 
-                                                      self._overlappedWrite, 
-                                                      1)
+                                                         self._overlappedWrite, 
+                                                         1)
+        log.msg('Completed writing %d bytes' % bytesTransmitted)
+        self.writeInProgress = False
         if not bytesTransmitted:
             # Write Failed
+            log.msg('WriteFailed')
             return True
         else:
-            self.writeInProgress = False
             if self.outQueue:
-                self.writeSomeData(self.outQueue.pop())
+                toWrite, self.outQueue = self.outQueue, ''
+                self.write(toWrite)
             return False
 
 
