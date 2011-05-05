@@ -84,14 +84,15 @@ class _MockWindowsEchoPort(SerialPort):
         self._overlapped.hEvent = win32event.CreateEvent(None, 1, 1, None)
         self.reactor.addEvent(self._overlapped.hEvent, self, 'slaveConnected')
         rc = win32pipe.ConnectNamedPipe(self._serial.hComPort, self._overlapped)
+
         import winerror
         if rc == winerror.ERROR_IO_PENDING:
             log.msg('ConnectNamedPipe returned ERROR_IO_PENDING')
         elif rc == winerror.ERROR_PIPE_CONNECTED:
-            log.msg('ConnectNamedPipe returned ERROR_PIPE_CONNECTED')
+            log.msg('ConnectNamedPipe returned PIPE_CONNECTED')
             self.slaveConnected()
         else:
-            log.msg('ConnectNamedPipe returned %d' % rc)
+            log.msg('ConnectNamedPipe returned unexpected code %d' % rc)
 
         
 
