@@ -150,11 +150,23 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
                 self.write(toWrite)
             return False
 
+    def loseConnection(self, _connDone=failure.Failure(main.CONNECTION_DONE)):
+        if self.connected:
+            self.stopReading()
+            self.stopWriting()
+            self.connectionLost(_connDone)
+            self.connected = False
 
     def connectionLost(self, reason):
+        #abstract.FileDescriptor.connectionLost(self, reason)
+
+        # Running the close first make this easier to test
+
         self.reactor.removeEvent(self._overlappedRead.hEvent)
         self.reactor.removeEvent(self._overlappedWrite.hEvent)
-        abstract.FileDescriptor.connectionLost(self, reason)
-        # Running the close first make this easier to test
+        win32file.CloseHandle(self._overlappedRead.hEvent)
+        win32file.CloseHandle(self._overlappedWrite.hEvent)
+        win32file.CancelIo(self._serial.hComPort)
         self._serial.close()
         self.protocol.connectionLost(reason)
+        
