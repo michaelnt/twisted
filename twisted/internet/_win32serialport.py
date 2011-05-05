@@ -26,7 +26,7 @@ from twisted.python import log, failure
 from serialport import BaseSerialPort
 import win32event, win32pipe, win32file, win32api, winerror
 
-READBUF_SIZE = 1204
+BYTESTOWAITFOR = 1
 
 
 
@@ -73,7 +73,7 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
 
         # Ask for a read and that will fire the event once the read has occured
         rc, self.read_buf = win32file.ReadFile(self._serial.hComPort,
-                                               win32file.AllocateReadBuffer(READBUF_SIZE),
+                                               win32file.AllocateReadBuffer(BYTESTOWAITFOR),
                                                self._overlappedRead)
 
 
@@ -106,7 +106,7 @@ class SerialPort(BaseSerialPort, abstract.FileDescriptor):
         try:
             rc, self.read_buf = win32file.ReadFile(
                 self._serial.hComPort,
-                win32file.AllocateReadBuffer(READBUF_SIZE),
+                win32file.AllocateReadBuffer(BYTESTOWAITFOR),
                 self._overlappedRead)
         except Exception as e:
             self.connectionLost(e)
